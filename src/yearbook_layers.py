@@ -1,12 +1,8 @@
-import sys
-sys.path.insert(0,'../python')
 import caffe
-
 import numpy as np
 import PIL
 from PIL import Image
 import scipy.io
-
 import random
 
 class YearbookDataLayer(caffe.Layer):

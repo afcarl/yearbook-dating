@@ -1,14 +1,13 @@
 import sys
-sys.path.insert(0,'../python')
 import caffe
 from caffe import layers as L, params as P
 from caffe.coord_map import crop
 
 def conv_relu(bottom, nout, freeze, ks=3, stride=1, pad=1):
     if freeze:
-        lr_params = [dict(lr_mult=0, decay_mult=0), dict(lr_mult=0, decay_mult=0)]) 
+        lr_params = [dict(lr_mult=0, decay_mult=0), dict(lr_mult=0, decay_mult=0)]
     else:
-        lr_params = [dict(lr_mult=1, decay_mult=1), dict(lr_mult=2, decay_mult=0)])
+        lr_params = [dict(lr_mult=1, decay_mult=1), dict(lr_mult=2, decay_mult=0)]
     conv = L.Convolution(bottom, kernel_size=ks, stride=stride,
         num_output=nout, pad=pad, param=lr_params)
     return conv, L.ReLU(conv, in_place=True)
@@ -16,21 +15,25 @@ def conv_relu(bottom, nout, freeze, ks=3, stride=1, pad=1):
 def max_pool(bottom, ks=2, stride=2):
     return L.Pooling(bottom, pool=P.Pooling.MAX, kernel_size=ks, stride=stride)
 
-def yearbook_dating(gender, split, bs, freeze=False):
+def yearbook_dating(gender, split, bs, freeze=False, deploy=False):
     ''' VGG classification architecture
         Fully connected layers are resized for the Yearbook images (96 x 96 pixels)
         Load images into the net via Python data layer '''
     num_classes = 83
     mean = (121.87, 121.87, 121.87) if gender == 'women' else (137.47, 137.47, 137.47)
+    im_shape = (96,96)
     n = caffe.NetSpec()
-    pydata_params = dict(im_shape=(96,96), num_classes=num_classes, batch_size=bs, split=split, mean=mean, seed=1337)
-    pydata_params['yearbook_dir'] = '../data/faces/' + gender
-    # Specify the data layer to use:
-    # - yearbook_layers for loading cropped, aligned portraits
-    # - yearbook_bg_layers for loading background crops (used for generalization exp in the paper)
-    pylayer = 'YearbookDataLayer'
-    n.data, n.label = L.Python(module='yearbook_layers', layer=pylayer,
-            ntop=2, param_str=str(pydata_params))
+    if not deploy:
+        pydata_params = dict(im_shape=im_shape, num_classes=num_classes, batch_size=bs, split=split, mean=mean, seed=1337)
+        pydata_params['yearbook_dir'] = 'data/faces/' + gender
+        # Specify the data layer to use:
+        # - yearbook_layers for loading cropped, aligned portraits
+        # - yearbook_bg_layers for loading background crops (used for generalization exp in the paper)
+        pylayer = 'YearbookDataLayer'
+        n.data, n.label = L.Python(module='yearbook_layers', layer=pylayer,
+                ntop=2, param_str=str(pydata_params))
+    else:
+        n.data = L.Input(shape=[dict(dim=[1, 3, im_shape[0], im_shape[1]])])
 
     # the base net
     n.conv1_1, n.relu1_1 = conv_relu(n.data, 64, freeze)
@@ -65,8 +68,9 @@ def yearbook_dating(gender, split, bs, freeze=False):
     n.drop7 = L.Dropout(n.relu7, dropout_ratio=0.5, in_place=True)
     # Classification layer and loss
     n.yrbook = L.InnerProduct(n.drop7, num_output=num_classes, weight_filler=dict(type='gaussian', std=0.005), param=[dict(lr_mult=1, decay_mult=1), dict(lr_mult=2, decay_mult=0)])
-    n.loss = L.SoftmaxWithLoss(n.yrbook, n.label)
-    if split != ['train']:
-        n.acc = L.Accuracy(n.yrbook, n.label)
+    if not deploy:
+        n.loss = L.SoftmaxWithLoss(n.yrbook, n.label)
+        if split != ['train']:
+            n.acc = L.Accuracy(n.yrbook, n.label)
 
     return n.to_proto()

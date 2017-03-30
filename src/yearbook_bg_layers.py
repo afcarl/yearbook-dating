@@ -1,30 +1,16 @@
-import sys
-sys.path.insert(0,'../python')
 import caffe
-
 import numpy as np
 import PIL
 from PIL import Image
 import scipy.io
-
 import random
 
 class YearbookDataLayer(caffe.Layer):
     """
-    Load images from the yearbook dataset one-at-a-time.
+    Load random background crops from the Yearbook dataset
     """
 
     def setup(self, bottom, top):
-        """
-        Setup data layer according to parameters:
-
-        - data_dir: path to yearbook images dir
-        - split: train / val / test
-        - randomize: load in random order (default: True)
-        - seed: seed for randomization (default: None / current time)
-
-        example: params = dict(data_dir="/path/to/yearbook/images", split="val")
-        """
         # config
         params = eval(self.param_str)
         self.data_dir = params['yearbook_dir']
@@ -35,7 +21,6 @@ class YearbookDataLayer(caffe.Layer):
         self.im_shape = params['im_shape'] 
         self.batch_size = int(params['batch_size'])
         self.num_classes = params.get('num_classes', 83)
-        self.bad_imgs = []
 
         # tops: check configuration
         if len(top) != 2:
@@ -46,7 +31,7 @@ class YearbookDataLayer(caffe.Layer):
 
         # Shape the data layer once since all the data is the same size
         top[0].reshape(self.batch_size,3, self.im_shape[0], self.im_shape[1])
-        top[1].reshape(self.batch_size, 1) # SoftmaxWithLoss takes a scalar as the label
+        top[1].reshape(self.batch_size, 1) 
 
         # load indices for images and labels
         split_f  = '{}/{}.txt'.format(self.data_dir, self.split[0])
@@ -96,7 +81,6 @@ class YearbookDataLayer(caffe.Layer):
         im = np.array(Image.open('{}/images/{}'.format(self.data_dir, idx)), dtype=np.uint8)
         # Take a random 32 x 32 crop out of one of the four corners of the image
         corner_points = [(0,0), (im.shape[0] -32, 0), (0, im.shape[1] -32), (im.shape[0] -32, im.shape[1]-32)]
-        import random
         pt = random.choice(corner_points)
         crop = im[pt[0]: pt[0] + 32, pt[1]:pt[1] + 32]
         # do a simple horizontal flip as data augmentation
@@ -113,15 +97,12 @@ class YearbookDataLayer(caffe.Layer):
         """
 	Compute the label from the filename
         """
-        min_year = 28 # start labeling from the first year from which we have data
+        min_year = 28
         year = idx.split('_')[0]
         if year[0] == str(1): # 20th century
             label = int(year[-2:]) - min_year 
         else: # 21st century
             label = int(year[-2:]) + (100 - min_year)
-        #arr = np.zeros(self.num_classes).astype(np.float32)
-        #arr[label] = 1.0
-        #print 'making label ', arr
         return label
 
     
