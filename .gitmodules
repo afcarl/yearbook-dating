@@ -1,0 +1,4 @@
+[submodule "caffe"]
+	path = caffe
+	url = git@github.com/katerakelly/yearbook-dating
+	branch = caffe
